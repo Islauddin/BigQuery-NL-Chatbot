@@ -4,5 +4,4 @@ google-genai>=1.0
 pandas>=2.0
 db-dtypes>=1.2
 pyarrow>=14.0
-python-dotenv>=1.0
 sqlparse>=0.4.4

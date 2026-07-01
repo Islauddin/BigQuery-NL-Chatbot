@@ -14,10 +14,8 @@ class QueryTooExpensiveError(RuntimeError):
         )
 
 
-def build_client(project_id: str, service_account_key_path: str) -> bigquery.Client:
-    credentials = service_account.Credentials.from_service_account_file(
-        service_account_key_path
-    )
+def build_client(project_id: str, service_account_info: dict) -> bigquery.Client:
+    credentials = service_account.Credentials.from_service_account_info(service_account_info)
     return bigquery.Client(project=project_id, credentials=credentials)
 
 

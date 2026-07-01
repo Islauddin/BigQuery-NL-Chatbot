@@ -17,6 +17,10 @@ Your question
 ## Features
 
 - Chat-style UI built with Streamlit
+- **Fully self-serve setup** — no `.env` file to configure. On first load, the
+  app asks the client for their own service account key, GCP project ID,
+  dataset ID(s), and Gemini API key, then validates the connection before
+  unlocking the chat
 - Schema-aware: reads real table/column names from `INFORMATION_SCHEMA` so
   the LLM doesn't guess
 - SQL guardrails: blocks any non-SELECT statement, restricts queries to a
@@ -34,57 +38,54 @@ Your question
    pip install -r requirements.txt
    ```
 
-2. Create a GCP service account with **read-only** BigQuery access
-   (`roles/bigquery.dataViewer` + `roles/bigquery.jobUser`), download its
-   JSON key.
-
-3. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/).
-
-4. Copy `.env.example` to `.env` and fill in your values:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-5. Run the app:
+2. Run the app:
 
    ```bash
    streamlit run app.py
    ```
 
-## Configuration
+3. On the setup screen, provide:
 
-All configuration lives in `.env` (see `.env.example`):
+   - **Service account JSON key** — create a GCP service account with
+     **read-only** BigQuery access (`roles/bigquery.dataViewer` +
+     `roles/bigquery.jobUser`), download its JSON key, and upload it here.
+     It's parsed in memory for this session only and never written to disk.
+   - **GCP Project ID** — defaults to the project embedded in the key if
+     left blank.
+   - **BigQuery Dataset ID(s)** — comma-separated (e.g. `sales, marketing`).
+     Only these datasets are shown to the LLM and are queryable.
+   - **Gemini API Key** — from [Google AI Studio](https://aistudio.google.com/).
+   - *(Optional, under "Advanced settings")* Gemini model, max scan size per
+     query (MB), max rows returned.
 
-| Variable | Description |
-| --- | --- |
-| `GEMINI_API_KEY` | API key from Google AI Studio |
-| `GEMINI_MODEL` | Gemini model name (default `gemini-2.5-flash`) |
-| `GCP_PROJECT_ID` | GCP project the service account/queries run against |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to the service account JSON key |
-| `DATASET_WHITELIST` | Comma-separated dataset IDs the app is allowed to see/query |
-| `MAX_BYTES_BILLED` | Refuse queries estimated to scan more than this many bytes |
-| `MAX_ROWS` | Row limit auto-appended to generated queries without one |
+   Clicking **Connect** validates the credentials by reading the schema; on
+   success the chat interface unlocks. Use the **Reconfigure** button in the
+   sidebar at any time to disconnect and set up a different project.
 
 ## Safety notes
 
 - The service account used should be **read-only** — the app's SQL
   guardrail is a second layer of defense, not the only one.
-- `DATASET_WHITELIST` restricts which datasets the LLM is even shown, and
-  which tables generated SQL is allowed to reference.
-- `MAX_BYTES_BILLED` prevents runaway queries from scanning your entire
+- The dataset whitelist entered at setup restricts which datasets the LLM is
+  even shown, and which tables generated SQL is allowed to reference.
+- The max-scan setting prevents runaway queries from scanning your entire
   warehouse and racking up cost.
+- Uploaded keys and API keys live only in that browser session's server-side
+  memory (`st.session_state`) — they're discarded when the session ends or
+  "Reconfigure" is clicked.
 
 ## Project structure
 
 ```
-app.py            Streamlit chat UI
-config.py         Environment/config loader
+app.py            Streamlit chat UI: setup form (phase 1) + chat (phase 2)
+config.py         Config model + validation for setup-form input
 schema_loader.py  Pulls live schema from BigQuery INFORMATION_SCHEMA
-nl2sql.py         Gemini-based NL → SQL translation
-sql_guard.py       Validates/sanitizes generated SQL
+nl2sql.py         Gemini-based NL → SQL translation (google-genai SDK)
+sql_guard.py      Validates/sanitizes generated SQL
 bq_client.py      BigQuery execution with dry-run cost check
 export.py         DataFrame → CSV bytes for download
+requirements.txt  Python dependencies
+.gitignore        Keeps stray key files, .env, __pycache__ out of git
 ```
 
 ## Roadmap ideas

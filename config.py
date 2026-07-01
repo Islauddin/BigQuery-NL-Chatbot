@@ -1,46 +1,51 @@
-"""Loads and validates configuration from environment variables / .env."""
+"""Config model + validation for values collected from the client-side setup form."""
 
-import os
 from dataclasses import dataclass
 
-from dotenv import load_dotenv
-
-load_dotenv()
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_MAX_BYTES_BILLED = 100_000_000  # 100 MB
+DEFAULT_MAX_ROWS = 1000
 
 
 @dataclass(frozen=True)
 class Config:
+    project_id: str
+    dataset_whitelist: tuple
     gemini_api_key: str
     gemini_model: str
-    gcp_project_id: str
-    service_account_key_path: str
-    dataset_whitelist: tuple
     max_bytes_billed: int
     max_rows: int
 
 
-def _require(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
+def build_config(
+    *,
+    project_id: str,
+    dataset_whitelist_raw: str,
+    gemini_api_key: str,
+    gemini_model: str = "",
+    max_bytes_billed: int = DEFAULT_MAX_BYTES_BILLED,
+    max_rows: int = DEFAULT_MAX_ROWS,
+) -> Config:
+    """Validates raw setup-form input and returns an immutable Config, or raises ValueError."""
+    project_id = (project_id or "").strip()
+    if not project_id:
+        raise ValueError("GCP Project ID is required.")
 
-
-def load_config() -> Config:
-    whitelist = tuple(
-        d.strip() for d in os.environ.get("DATASET_WHITELIST", "").split(",") if d.strip()
+    dataset_whitelist = tuple(
+        dict.fromkeys(d.strip() for d in (dataset_whitelist_raw or "").split(",") if d.strip())
     )
-    if not whitelist:
-        raise RuntimeError(
-            "DATASET_WHITELIST must list at least one dataset (comma-separated)."
-        )
+    if not dataset_whitelist:
+        raise ValueError("At least one BigQuery dataset ID is required.")
+
+    gemini_api_key = (gemini_api_key or "").strip()
+    if not gemini_api_key:
+        raise ValueError("Gemini API key is required.")
 
     return Config(
-        gemini_api_key=_require("GEMINI_API_KEY"),
-        gemini_model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
-        gcp_project_id=_require("GCP_PROJECT_ID"),
-        service_account_key_path=_require("GOOGLE_APPLICATION_CREDENTIALS"),
-        dataset_whitelist=whitelist,
-        max_bytes_billed=int(os.environ.get("MAX_BYTES_BILLED", 100_000_000)),
-        max_rows=int(os.environ.get("MAX_ROWS", 1000)),
+        project_id=project_id,
+        dataset_whitelist=dataset_whitelist,
+        gemini_api_key=gemini_api_key,
+        gemini_model=(gemini_model or DEFAULT_GEMINI_MODEL).strip(),
+        max_bytes_billed=int(max_bytes_billed),
+        max_rows=int(max_rows),
     )
